@@ -1,8 +1,17 @@
 # QUICKSTART UNIVERSE
 
----
-
 Start everything in one step 👣
+
+## How to use?
+
+```bash
+qsu ${component}
+```
+
+### Components List
+
+* [kafka](./kafka)
+
 
 ## LICENSE
 
