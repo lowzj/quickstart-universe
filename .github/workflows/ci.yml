@@ -40,9 +40,7 @@ jobs:
 
     - name: Lint with Ruff
       run: |
-        uv run ruff check .  # Assuming ruff is added as a dev dependency or uv can find it.
-                           # If not, `uv pip install ruff` might be needed before this.
-                           # Or, if Ruff is part of the project dependencies in pyproject.toml.
+        .venv/bin/ruff check . # Call ruff directly from the venv
 
     - name: Test with unittest
       run: |
