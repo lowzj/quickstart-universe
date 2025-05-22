@@ -1,0 +1,26 @@
+{
+    "python.analysis.typeCheckingMode": "basic",
+    "python.terminal.activateEnvironment": true,
+    "python.testing.unittestArgs": [
+        "-v",
+        "-s",
+        "./tests",
+        "-p",
+        "test_*.py"
+    ],
+    "python.testing.pytestEnabled": false,
+    "python.testing.unittestEnabled": true,
+    "[python]": {
+        "editor.defaultFormatter": "charliermarsh.ruff",
+        "editor.formatOnSave": true,
+        "editor.codeActionsOnSave": {
+            "source.fixAll": "explicit",
+            "source.organizeImports": "explicit"
+        }
+    },
+    "ruff.path": [
+        "~/.local/bin/ruff" 
+    ],
+    "ruff.lint.args": [],
+    "python.defaultInterpreterPath": "${workspaceFolder}/.venv/bin/python" 
+}

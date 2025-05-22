@@ -1,0 +1,45 @@
+name: Python CI
+
+on:
+  push:
+    branches: [ "main", "master" ] # Adjust if your main branch has a different name
+  pull_request:
+    branches: [ "main", "master" ] # Adjust if your main branch has a different name
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"] # Test against multiple Python versions
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Install uv
+      run: |
+        pip install uv
+
+    - name: Create virtual environment and install dependencies
+      run: |
+        uv venv --python ${{ matrix.python-version }} # Specify Python version for venv
+        uv pip sync pyproject.toml
+      # Note: The source .venv/bin/activate is not strictly needed here if using `uv run` for subsequent commands,
+      # but if running commands directly, activation or full path to executables in .venv/bin might be needed.
+      # For simplicity, we'll assume `uv run` handles the environment.
+
+    - name: Lint with Ruff
+      run: |
+        uv run ruff check .  # Assuming ruff is added as a dev dependency or uv can find it.
+                           # If not, `uv pip install ruff` might be needed before this.
+                           # Or, if Ruff is part of the project dependencies in pyproject.toml.
+
+    - name: Test with unittest
+      run: |
+        uv run python -m unittest discover -s tests -p "test_*.py"

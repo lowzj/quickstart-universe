@@ -1,0 +1,14 @@
+[project]
+name = "quickstart-universe"
+version = "0.1.0"
+description = "Quickstart Universe aims to drastically reduce the time spent on learning and deploying new tools from hours or even days to mere minutes."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "fastapi",
+    "jinja2",
+    "pydantic",
+    "python-multipart",
+    "requests",
+    "uvicorn[standard]",
+]
