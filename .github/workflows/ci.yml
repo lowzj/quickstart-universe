@@ -34,6 +34,10 @@ jobs:
       # but if running commands directly, activation or full path to executables in .venv/bin might be needed.
       # For simplicity, we'll assume `uv run` handles the environment.
 
+    - name: Install Ruff for linting
+      run: |
+        uv pip install ruff # Explicitly install ruff
+
     - name: Lint with Ruff
       run: |
         uv run ruff check .  # Assuming ruff is added as a dev dependency or uv can find it.
