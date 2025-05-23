@@ -73,8 +73,8 @@ async def process_url(request: Request, url: str = Form(...)):
             html_content=html_content, url=pydantic_url_obj
         )
         extracted_info = extracted_data.model_dump(
-            exclude_none=True
-        )  # Convert Pydantic model to dict
+            mode='json', exclude_none=True
+        )  # Ensure JSON-serializable types
         simulated_steps.append(
             f"MockContentExtractor finished. Tool identified: {extracted_data.tool_name or 'None'}"
         )
