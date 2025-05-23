@@ -6,7 +6,7 @@ import logging
 from pydantic import HttpUrl  # Added for URL validation/casting
 
 # Service and model imports
-from .services.content_extractor import MockContentExtractor, ExtractedContent
+from .services.content_extractor import MockContentExtractor, ExtractedContent, GeminiExtractor
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -18,7 +18,8 @@ templates = Jinja2Templates(
 )  # Assumes templates are in 'app/templates'
 
 # Instantiate the extractor
-extractor = MockContentExtractor()
+# Future enhancement: Allow extractor selection via environment variable or configuration
+extractor = GeminiExtractor()
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -67,7 +68,7 @@ async def process_url(request: Request, url: str = Form(...)):
 
         # Call the content extractor
         simulated_steps.append(
-            f"Calling MockContentExtractor for URL: {pydantic_url_obj}"
+            f"Calling ContentExtractor ({extractor.__class__.__name__}) for URL: {pydantic_url_obj}"
         )
         extracted_data: ExtractedContent = await extractor.extract(
             html_content=html_content, url=pydantic_url_obj
@@ -76,7 +77,7 @@ async def process_url(request: Request, url: str = Form(...)):
             mode='json', exclude_none=True
         )  # Ensure JSON-serializable types
         simulated_steps.append(
-            f"MockContentExtractor finished. Tool identified: {extracted_data.tool_name or 'None'}"
+            f"ContentExtractor ({extractor.__class__.__name__}) finished. Tool identified: {extracted_data.tool_name or 'None'}"
         )
 
         # Generate placeholder scripts based on extracted_data
@@ -100,10 +101,13 @@ echo "{extracted_data.tool_name or "Tool"} container should be running. Check wi
             simulated_steps.append("No Docker Compose snippet found.")
 
         # If the extractor itself indicates no tool was found via its metadata or tool_name
+        # Note: The specific string "MockExtractor - No specific tool recognized" might need to be generalized
+        # if we want this logic to apply to other extractors that might also signal "no tool recognized".
+        # For now, this specific check might not be hit if GeminiExtractor always returns some tool name.
         if (
             not extracted_data.tool_name
             and extracted_info.get("extraction_metadata", {}).get("source")
-            == "MockExtractor - No specific tool recognized"
+            == "MockExtractor - No specific tool recognized" # This specific check might become less relevant
         ):
             if "message" not in extracted_info:
                 extracted_info["message"] = (
