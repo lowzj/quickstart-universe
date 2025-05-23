@@ -1,3 +1,10 @@
 # vim
 *.swo
 *.swp
+
+# Python
+*.pyc
+__pycache__/
+
+# Virtual environments
+.venv/

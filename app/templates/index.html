@@ -1,0 +1,49 @@
+<!-- app/templates/index.html -->
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Quickstart Universe MVP (FastAPI)</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/water.css@2/out/water.css">
+</head>
+<body>
+    <h1>Enter Quickstart URL</h1>
+    <form method="POST" action="/process-url">
+        <label for="url">Quickstart URL:</label>
+        <input type="url" id="url" name="url" placeholder="https://example.com/quickstart" required size="70">
+        <button type="submit">Fetch & Analyze (MVP)</button>
+    </form>
+
+    {% if submitted_url %}
+        <h3>Results for: {{ submitted_url }}</h3>
+        {% if error %}
+            <p style="color:red;"><strong>Error:</strong> {{ error }}</p>
+        {% endif %}
+
+        {% if simulated_steps %}
+            <h4>Processing Steps:</h4>
+            <ul>
+                {% for step in simulated_steps %}
+                    <li>{{ step }}</li>
+                {% endfor %}
+            </ul>
+        {% endif %}
+
+        {% if raw_content_snippet %}
+            <h4>Raw Content Snippet (first 500 chars):</h4>
+            <pre>{{ raw_content_snippet }}...</pre>
+        {% endif %}
+        {% if extracted_info %}
+            <h4>Extracted Information (Placeholder):</h4>
+            <pre>{{ extracted_info | tojson(indent=2) }}</pre>
+        {% endif %}
+        {% if bash_script %}
+            <h4>Generated Bash Script (Placeholder):</h4>
+            <pre>{{ bash_script }}</pre>
+        {% endif %}
+        {% if docker_compose_script %}
+            <h4>Generated Docker Compose (Placeholder):</h4>
+            <pre>{{ docker_compose_script }}</pre>
+        {% endif %}
+    {% endif %}
+</body>
+</html>
