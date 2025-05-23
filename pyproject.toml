@@ -5,11 +5,13 @@ description = "Quickstart Universe aims to drastically reduce the time spent on 
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
+    "click",
     "fastapi",
     "jinja2",
     "pydantic",
     "python-multipart",
     "requests",
+    "typing-extensions",
     "uvicorn[standard]",
 ]
 
