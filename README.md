@@ -88,6 +88,30 @@ We aim to support a wide range of deployment environments:
 
 ---
 
+## AI Model Integration
+
+The application has been updated to support content extraction from quickstart documents using various AI models. This allows for more sophisticated parsing of HTML content to identify key setup steps, dependencies, and configurations.
+
+Placeholder implementations for the following AI models have been added to `app/services/content_extractor.py`:
+- `GeminiExtractor`
+- `GptExtractor`
+- `LlamaExtractor`
+- `DeepSeekExtractor`
+- `ClaudeExtractor`
+
+These are currently **placeholders** and do not make live API calls. To enable full functionality for any of these extractors, users would need to:
+1.  **Install the respective Python SDK:** For example, for Gemini, you would install `google-generativeai`. A placeholder for this is in `pyproject.toml`.
+2.  **Configure API Keys:** Securely manage API keys, typically via environment variables (e.g., `GEMINI_API_KEY`) or a dedicated configuration file. The extractor classes would need to be updated to load these keys.
+3.  **Implement API Logic:** Within each extractor class (e.g., `GeminiExtractor.extract`), implement the actual logic for:
+    *   Initializing the AI model's client with the API key.
+    *   Constructing an appropriate prompt using the input HTML content.
+    *   Making the API call to the model.
+    *   Parsing the model's response to populate the `ExtractedContent` Pydantic model.
+
+Currently, `app/main.py` is configured to use `GeminiExtractor`. This can be easily changed by modifying the `extractor` variable instantiation in `app/main.py` to use one of the other implemented placeholder extractors (e.g., `extractor = GptExtractor()`).
+
+---
+
 ## 🗺️ Roadmap
 
 *   **✅ MVP (Completed/In Progress):**
