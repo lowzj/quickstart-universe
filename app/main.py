@@ -6,7 +6,7 @@ import logging
 from pydantic import HttpUrl  # Added for URL validation/casting
 
 # Service and model imports
-from .services.content_extractor import MockContentExtractor, ExtractedContent, GeminiExtractor
+from .services.content_extractor import ExtractedContent, GeminiExtractor
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
