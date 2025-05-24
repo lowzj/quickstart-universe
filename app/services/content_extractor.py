@@ -81,6 +81,10 @@ class ContentExtractor(ABC):
 
 # --- Mock Implementation ---
 class MockContentExtractor(ContentExtractor):
+    def __init__(self, api_key: Optional[str] = None):
+        # API key is ignored for this mock extractor
+        pass
+
     async def extract(self, html_content: str, url: HttpUrl) -> ExtractedContent:
         logger = logging.getLogger(__name__)
         logger.info(f"MockContentExtractor processing URL: {url}")
@@ -359,6 +363,10 @@ class GptExtractor(ContentExtractor):
     quickstart information.
     """
 
+    def __init__(self, api_key: Optional[str] = None):
+        # API key is ignored for this placeholder extractor
+        pass
+
     async def extract(self, html_content: str, url: HttpUrl) -> ExtractedContent:
         logger = logging.getLogger(__name__)
         logger.info(f"GptExtractor processing URL: {url}")
@@ -407,6 +415,10 @@ class LlamaExtractor(ContentExtractor):
     Content extractor using a placeholder for a Llama-based API.
     This class simulates interaction with a Llama model.
     """
+
+    def __init__(self, api_key: Optional[str] = None):
+        # API key is ignored for this placeholder extractor
+        pass
 
     async def extract(self, html_content: str, url: HttpUrl) -> ExtractedContent:
         logger = logging.getLogger(__name__)
@@ -457,6 +469,10 @@ class DeepSeekExtractor(ContentExtractor):
     This class simulates interaction with a DeepSeek model.
     """
 
+    def __init__(self, api_key: Optional[str] = None):
+        # API key is ignored for this placeholder extractor
+        pass
+
     async def extract(self, html_content: str, url: HttpUrl) -> ExtractedContent:
         logger = logging.getLogger(__name__)
         logger.info(f"DeepSeekExtractor processing URL: {url}")
@@ -505,6 +521,10 @@ class ClaudeExtractor(ContentExtractor):
     Content extractor using a placeholder for Claude API.
     This class simulates interaction with an Anthropic Claude model.
     """
+
+    def __init__(self, api_key: Optional[str] = None):
+        # API key is ignored for this placeholder extractor
+        pass
 
     async def extract(self, html_content: str, url: HttpUrl) -> ExtractedContent:
         logger = logging.getLogger(__name__)
