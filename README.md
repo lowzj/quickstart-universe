@@ -108,6 +108,26 @@ These are currently **placeholders** and do not make live API calls. To enable f
     *   Making the API call to the model.
     *   Parsing the model's response to populate the `ExtractedContent` Pydantic model.
 
+### Configuring Gemini (Google AI Studio)
+
+To enable the `GeminiExtractor` to make actual API calls to the Google AI Studio (Gemini API), you need to configure your API key:
+
+1.  **Set the Environment Variable**:
+    The `GeminiExtractor` expects your API key to be available as an environment variable named `GEMINI_API_KEY`. You can set this in your shell session or `.env` file:
+    ```bash
+    export GEMINI_API_KEY="YOUR_API_KEY_HERE"
+    ```
+    Replace `"YOUR_API_KEY_HERE"` with your actual API key obtained from Google AI Studio.
+
+2.  **Dependency Installation**:
+    The `google-generativeai` package, which is the Python SDK for the Gemini API, is now listed as a dependency in `pyproject.toml` (e.g., `google-generativeai = "^0.5.0"`). Ensure it's installed in your project's environment. If you are managing dependencies manually or setting up a new environment, you might need to install it, for example, using a command like:
+    ```bash
+    uv pip sync pyproject.toml 
+    ```
+    (or `pip install google-generativeai` if you're managing packages individually).
+
+If the `GEMINI_API_KEY` environment variable is not set, the `GeminiExtractor` will automatically fall back to using mock/placeholder data, and a warning will be logged indicating this. This allows for development and testing without requiring a live API key.
+
 Currently, `app/main.py` is configured to use `GeminiExtractor`. This can be easily changed by modifying the `extractor` variable instantiation in `app/main.py` to use one of the other implemented placeholder extractors (e.g., `extractor = GptExtractor()`).
 
 ---

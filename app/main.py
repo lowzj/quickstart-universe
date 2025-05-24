@@ -1,3 +1,4 @@
+import os
 from fastapi import FastAPI, Request, Form
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
@@ -19,7 +20,15 @@ templates = Jinja2Templates(
 
 # Instantiate the extractor
 # Future enhancement: Allow extractor selection via environment variable or configuration
-extractor = GeminiExtractor()
+gemini_api_key = os.getenv("GEMINI_API_KEY")
+if gemini_api_key:
+    logger.info("Gemini API key found. GeminiExtractor will attempt to use it.")
+else:
+    logger.warning(
+        "GEMINI_API_KEY environment variable not set. "
+        "GeminiExtractor will run in mock/placeholder mode."
+    )
+extractor = GeminiExtractor(api_key=gemini_api_key)
 
 
 @app.get("/", response_class=HTMLResponse)
