@@ -1,4 +1,5 @@
 import json
+import google.generativeai as genai
 from abc import ABC, abstractmethod
 from pydantic import BaseModel, HttpUrl, Field
 from typing import List, Optional, Dict, Any
@@ -183,12 +184,19 @@ class GeminiExtractor(ContentExtractor):
         logger.info("GeminiExtractor attempting to process content.")
 
         if self._api_key:
-            logger.info(f"API key found. Attempting simulated API call for URL: {url}")
-            # TODO: Implement actual Gemini SDK initialization
-            # import google.generativeai as genai
-            # genai.configure(api_key=self._api_key)
-            # model = genai.GenerativeModel('gemini-pro') # Or other appropriate model
-            logger.info("Simulating Gemini SDK initialization with API key.")
+            logger.info("Gemini API key found. Attempting to initialize SDK and make a live API call.")
+            try:
+                genai.configure(api_key=self._api_key)
+                model = genai.GenerativeModel('gemini-pro') # Or 'gemini-1.5-flash' or other suitable model
+            except Exception as e:
+                logger.error(f"Failed to initialize Gemini SDK: {e}", exc_info=True)
+                return ExtractedContent(
+                    source_url=url,
+                    extraction_metadata={
+                        "source": "GeminiExtractor - SDK Initialization Error",
+                        "error": str(e)
+                    }
+                )
 
             prompt = f"""Analyze the following HTML content from {url} and extract quickstart information.
             Focus on:
@@ -225,81 +233,100 @@ class GeminiExtractor(ContentExtractor):
             HTML Content (first 10000 characters):
             {html_content[:10000]}
             """
-            logger.info(f"Generated prompt for Gemini (simulated). Length: {len(prompt)}")
+            logger.info(f"Generated prompt for Gemini. Length: {len(prompt)}")
 
-            # TODO: Implement actual API call
-            # response = model.generate_content(prompt)
-            # ai_response_text = response.text # Or however the SDK provides the text
-            mock_ai_response_text = """
-            {
-              "tool_name": "SuperAnalyzer",
-              "tool_version": "2.5.1",
-              "quickstart_title": "Getting Started with SuperAnalyzer 2.5",
-              "dependencies": [
-                {"name": "Python", "version": "3.8+", "type": "language"},
-                {"name": "Pip", "version": "20+", "type": "tool"},
-                {"name": "Requests", "version": "2.25.0", "type": "library"}
-              ],
-              "configurations": [
-                {"parameter": "LICENSE_KEY", "default_value": null, "description": "Your SuperAnalyzer license key.", "file_path": "config/analyzer.ini"},
-                {"parameter": "ANALYSIS_MODE", "default_value": "deep", "description": "Mode for analysis: 'quick' or 'deep'.", "file_path": "config/analyzer.ini"}
-              ],
-              "setup_steps": [
-                {"description": "Clone the repository", "command": "git clone https://example.com/superanalyzer.git", "type": "download"},
-                {"description": "Navigate to the directory", "command": "cd superanalyzer", "type": "configure"},
-                {"description": "Install dependencies", "command": "pip install -r requirements.txt", "type": "build"},
-                {"description": "Run initial setup", "command": "python setup.py --init", "type": "configure"},
-                {"description": "Start the SuperAnalyzer server", "command": "./start-server.sh", "type": "run"},
-                {"description": "Verify by accessing localhost:8080", "type": "verify"}
-              ],
-              "docker_image": "superanalyzer/app:2.5.1",
-              "docker_run_command": "docker run -d -p 8080:80 -v /local/config:/app/config superanalyzer/app:2.5.1",
-              "docker_compose_snippet": "version: '3.8'\\nservices:\\n  analyzer:\\n    image: superanalyzer/app:2.5.1\\n    ports:\\n      - \\"8080:80\\"\\n    volumes:\\n      - /local/config:/app/config",
-              "raw_text_summary": "SuperAnalyzer is a powerful tool for analyzing complex data structures and providing insightful reports. This guide helps you get it up and running quickly."
-            }
-            """
-            logger.info("Simulating API call to Gemini and receiving mock JSON response.")
-
+            ai_response_text = None
             try:
-                # This is where ai_response_text from the actual API call would be parsed
-                parsed_response = json.loads(mock_ai_response_text)
-                logger.info("Successfully parsed mock AI JSON response.")
+                logger.info(f"Sending prompt to Gemini model ({model.model_name})...")
+                # Optional: Add safety_settings if needed
+                # safety_settings = [
+                #     {
+                #         "category": "HARM_CATEGORY_HARASSMENT",
+                #         "threshold": "BLOCK_MEDIUM_AND_ABOVE"
+                #     },
+                #     # ... other categories
+                # ]
+                # response = model.generate_content(prompt, safety_settings=safety_settings)
+                response = model.generate_content(prompt)
+                
+                if response.parts:
+                    ai_response_text = response.text 
+                else:
+                    block_reason = response.prompt_feedback.block_reason if response.prompt_feedback else "Unknown"
+                    logger.warning(f"Gemini API call did not return content. Block reason: {block_reason}")
+                    finish_reason = response.candidates[0].finish_reason if response.candidates and response.candidates[0].finish_reason else "Unknown"
+                    return ExtractedContent(
+                        source_url=url,
+                        extraction_metadata={
+                            "source": "GeminiExtractor - Live API Call (No Content)",
+                            "model_used": model.model_name,
+                            "finish_reason": str(finish_reason),
+                            "block_reason": str(block_reason),
+                            "prompt_feedback": str(response.prompt_feedback)
+                        }
+                    )
 
-                dependencies_data = parsed_response.get("dependencies", [])
-                configurations_data = parsed_response.get("configurations", [])
-                setup_steps_data = parsed_response.get("setup_steps", [])
-
-                extraction_metadata = {
-                    "source": "GeminiExtractor - API Call (Simulated)",
-                    "model_used": "gemini-pro (example)",
-                    "prompt_length": len(prompt),
-                    "response_length": len(mock_ai_response_text)
-                }
-
-                return ExtractedContent(
-                    source_url=url,
-                    tool_name=parsed_response.get("tool_name"),
-                    tool_version=parsed_response.get("tool_version"),
-                    quickstart_title=parsed_response.get("quickstart_title"),
-                    dependencies=[ExtractedDependency(**dep) for dep in dependencies_data],
-                    configurations=[ExtractedConfiguration(**conf) for conf in configurations_data],
-                    setup_steps=[ExtractedStep(**step) for step in setup_steps_data],
-                    docker_image=parsed_response.get("docker_image"),
-                    docker_run_command=parsed_response.get("docker_run_command"),
-                    docker_compose_snippet=parsed_response.get("docker_compose_snippet"),
-                    raw_text_summary=parsed_response.get("raw_text_summary"),
-                    extraction_metadata=extraction_metadata,
-                )
-
-            except json.JSONDecodeError as e:
-                logger.error(f"Failed to parse mock AI JSON response: {e}")
+            except Exception as e:
+                logger.error(f"Gemini API call failed: {e}", exc_info=True)
                 return ExtractedContent(
                     source_url=url,
                     extraction_metadata={
-                        "source": "GeminiExtractor - API Call (Simulated)",
-                        "error": "Failed to parse AI response",
-                        "details": str(e),
-                    },
+                        "source": "GeminiExtractor - API Call Error",
+                        "error": str(e)
+                    }
+                )
+
+            if ai_response_text:
+                try:
+                    parsed_response = json.loads(ai_response_text)
+                    logger.info("Successfully parsed JSON response from Gemini API.")
+
+                    dependencies_data = parsed_response.get("dependencies", [])
+                    configurations_data = parsed_response.get("configurations", [])
+                    setup_steps_data = parsed_response.get("setup_steps", [])
+
+                    extraction_metadata = {
+                        "source": "GeminiExtractor - Live API Call (Success)",
+                        "model_used": model.model_name,
+                        "prompt_length": len(prompt),
+                        "response_length": len(ai_response_text)
+                    }
+
+                    return ExtractedContent(
+                        source_url=url,
+                        tool_name=parsed_response.get("tool_name"),
+                        tool_version=parsed_response.get("tool_version"),
+                        quickstart_title=parsed_response.get("quickstart_title"),
+                        dependencies=[ExtractedDependency(**dep) for dep in dependencies_data],
+                        configurations=[ExtractedConfiguration(**conf) for conf in configurations_data],
+                        setup_steps=[ExtractedStep(**step) for step in setup_steps_data],
+                        docker_image=parsed_response.get("docker_image"),
+                        docker_run_command=parsed_response.get("docker_run_command"),
+                        docker_compose_snippet=parsed_response.get("docker_compose_snippet"),
+                        raw_text_summary=parsed_response.get("raw_text_summary"),
+                        extraction_metadata=extraction_metadata,
+                    )
+
+                except json.JSONDecodeError as e:
+                    logger.error(f"Failed to parse JSON response from Gemini API: {e}", exc_info=True)
+                    logger.debug(f"AI Response Text was: {ai_response_text}")
+                    return ExtractedContent(
+                        source_url=url,
+                        raw_text_summary=ai_response_text, 
+                        extraction_metadata={
+                            "source": "GeminiExtractor - Live API Call (JSON Parse Error)",
+                            "model_used": model.model_name,
+                            "error": str(e)
+                        }
+                    )
+            else:
+                logger.warning("Gemini API call returned no text to parse.")
+                return ExtractedContent(
+                    source_url=url,
+                    extraction_metadata={
+                        "source": "GeminiExtractor - Live API Call (No Text Returned)",
+                        "model_used": model.model_name if 'model' in locals() else "gemini-pro"
+                    }
                 )
         else:
             logger.warning(f"No API key provided for GeminiExtractor. Falling back to placeholder mock data for URL: {url}")
