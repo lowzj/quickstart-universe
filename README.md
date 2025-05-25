@@ -126,6 +126,8 @@ The `GeminiExtractor` is now configured to attempt **live API calls** to the Goo
     ```
     (or `pip install google-generativeai` if you're managing packages individually).
 
+    The specific prompt used by `GeminiExtractor` is located in `app/services/prompts/gemini_extract_prompt.txt` and can be modified there if you wish to customize the extraction behavior.
+
 If the `GEMINI_API_KEY` environment variable is not set, the `GeminiExtractor` will automatically fall back to using mock/placeholder data, and a warning will be logged. This allows for development and testing without requiring a live API key for every run.
 
 Currently, `app/main.py` is configured to use `GeminiExtractor`. This can be easily changed by modifying the `extractor` variable instantiation in `app/main.py` to use one of the other implemented placeholder extractors (e.g., `extractor = GptExtractor()`).

@@ -1,5 +1,6 @@
 import json
 import google.generativeai as genai
+from pathlib import Path
 from abc import ABC, abstractmethod
 from pydantic import BaseModel, HttpUrl, Field
 from typing import List, Optional, Dict, Any
@@ -168,23 +169,33 @@ class GeminiExtractor(ContentExtractor):
         self._api_key = api_key
         # In a real scenario, you might also initialize the Gemini client here
         # if the API key is provided, or raise an error/warning if it's missing.
-        # For this placeholder, we'll just store it.
+        self.prompt_template_path = Path(__file__).parent / "prompts" / "gemini_extract_prompt.txt"
 
     async def extract(self, html_content: str, url: HttpUrl) -> ExtractedContent:
         logger = logging.getLogger(__name__)
         logger.info(f"GeminiExtractor processing URL: {url}")
 
-        # Simulate API key handling and client initialization
-        # Actual implementation would involve:
-        # 1. Retrieving API key from environment variables or a secure vault if not provided via __init__.
-        #    Example: effective_api_key = self._api_key or os.getenv("GEMINI_API_KEY")
-        #    # API key self._api_key (if provided) would be used here for SDK initialization.
-        # 2. Initializing the Gemini API client.
-        #    Example: gemini_client = GeminiClient(api_key=effective_api_key)
         logger.info("GeminiExtractor attempting to process content.")
 
         if self._api_key:
             logger.info("Gemini API key found. Attempting to initialize SDK and make a live API call.")
+
+            try:
+                prompt_template = self.prompt_template_path.read_text()
+            except FileNotFoundError:
+                logger.error(f"Prompt template file not found at {self.prompt_template_path}", exc_info=True)
+                return ExtractedContent(
+                    source_url=url,
+                    extraction_metadata={
+                        "source": "GeminiExtractor - Error",
+                        "error": f"Prompt template file not found: {self.prompt_template_path}"
+                    }
+                )
+
+            html_snippet = html_content[:10000] # Or whatever length is appropriate
+            prompt = prompt_template.format(url=str(url), html_snippet=html_snippet)
+            logger.info(f"Generated prompt for Gemini from template. Length: {len(prompt)}")
+
             try:
                 genai.configure(api_key=self._api_key)
                 model = genai.GenerativeModel('gemini-pro') # Or 'gemini-1.5-flash' or other suitable model
@@ -197,43 +208,6 @@ class GeminiExtractor(ContentExtractor):
                         "error": str(e)
                     }
                 )
-
-            prompt = f"""Analyze the following HTML content from {url} and extract quickstart information.
-            Focus on:
-            - Tool name and version
-            - Key dependencies (name, version, type like OS, language, library)
-            - Configuration parameters (parameter name, default value, description, file_path if applicable)
-            - Setup or installation steps (description, command, type like download, configure, build, run, verify)
-            - Docker image name, run commands, or docker-compose snippets if present.
-            - A brief raw text summary of the tool or process.
-            - A suitable title for this quickstart guide.
-
-            Return the information in a structured JSON format like this:
-            {{
-              "tool_name": "ExampleTool",
-              "tool_version": "1.2.3",
-              "quickstart_title": "Quickstart for ExampleTool",
-              "dependencies": [
-                {{"name": "Python", "version": "3.9+", "type": "language"}},
-                {{"name": "Docker", "type": "tool"}}
-              ],
-              "configurations": [
-                {{"parameter": "API_KEY", "default_value": "YOUR_API_KEY", "description": "API Key for service X", "file_path": ".env"}}
-              ],
-              "setup_steps": [
-                {{"description": "Download the tool", "command": "wget ...", "type": "download"}},
-                {{"description": "Run the installer", "command": "bash install.sh", "type": "run"}}
-              ],
-              "docker_image": "example/tool:latest",
-              "docker_run_command": "docker run example/tool:latest",
-              "docker_compose_snippet": "services:\\n  tool:\\n    image: example/tool:latest",
-              "raw_text_summary": "This is a tool for doing X, Y, and Z."
-            }}
-
-            HTML Content (first 10000 characters):
-            {html_content[:10000]}
-            """
-            logger.info(f"Generated prompt for Gemini. Length: {len(prompt)}")
 
             ai_response_text = None
             try:
