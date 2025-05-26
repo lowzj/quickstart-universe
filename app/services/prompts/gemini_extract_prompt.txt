@@ -1,0 +1,34 @@
+Analyze the following HTML content from {url} and extract quickstart information.
+Focus on:
+- Tool name and version
+- Key dependencies (name, version, type like OS, language, library)
+- Configuration parameters (parameter name, default value, description, file_path if applicable)
+- Setup or installation steps (description, command, type like download, configure, build, run, verify)
+- Docker image name, run commands, or docker-compose snippets if present.
+- A brief raw text summary of the tool or process.
+- A suitable title for this quickstart guide.
+
+Return the information in a structured JSON format like this:
+{{
+  "tool_name": "ExampleTool",
+  "tool_version": "1.2.3",
+  "quickstart_title": "Quickstart for ExampleTool",
+  "dependencies": [
+    {{"name": "Python", "version": "3.9+", "type": "language"}},
+    {{"name": "Docker", "type": "tool"}}
+  ],
+  "configurations": [
+    {{"parameter": "API_KEY", "default_value": "YOUR_API_KEY", "description": "API Key for service X", "file_path": ".env"}}
+  ],
+  "setup_steps": [
+    {{"description": "Download the tool", "command": "wget ...", "type": "download"}},
+    {{"description": "Run the installer", "command": "bash install.sh", "type": "run"}}
+  ],
+  "docker_image": "example/tool:latest",
+  "docker_run_command": "docker run example/tool:latest",
+  "docker_compose_snippet": "services:\n  tool:\n    image: example/tool:latest",
+  "raw_text_summary": "This is a tool for doing X, Y, and Z."
+}}
+
+HTML Content (first 10000 characters):
+{html_snippet}

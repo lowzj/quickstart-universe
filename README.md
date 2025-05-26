@@ -88,6 +88,52 @@ We aim to support a wide range of deployment environments:
 
 ---
 
+## AI Model Integration
+
+The application has been updated to support content extraction from quickstart documents using various AI models. This allows for more sophisticated parsing of HTML content to identify key setup steps, dependencies, and configurations.
+
+Placeholder implementations for the following AI models have been added to `app/services/content_extractor.py`:
+- `GeminiExtractor`
+- `GptExtractor`
+- `LlamaExtractor`
+- `DeepSeekExtractor`
+- `ClaudeExtractor`
+
+These are currently **placeholders** and do not make live API calls. To enable full functionality for any of these extractors, users would need to:
+1.  **Install the respective Python SDK:** For example, for Gemini, you would install `google-generativeai`. A placeholder for this is in `pyproject.toml`.
+2.  **Configure API Keys:** Securely manage API keys, typically via environment variables (e.g., `GEMINI_API_KEY`) or a dedicated configuration file. The extractor classes would need to be updated to load these keys.
+3.  **Implement API Logic:** Within each extractor class (e.g., `GeminiExtractor.extract`), implement the actual logic for:
+    *   Initializing the AI model's client with the API key.
+    *   Constructing an appropriate prompt using the input HTML content.
+    *   Making the API call to the model.
+    *   Parsing the model's response to populate the `ExtractedContent` Pydantic model.
+
+### Configuring Gemini (Google AI Studio)
+
+The `GeminiExtractor` is now configured to attempt **live API calls** to the Google Gemini API if the `GEMINI_API_KEY` environment variable is set. To enable this functionality:
+
+1.  **Set the Environment Variable**:
+    The `GeminiExtractor` expects your API key to be available as an environment variable named `GEMINI_API_KEY`. You can set this in your shell session or `.env` file:
+    ```bash
+    export GEMINI_API_KEY="YOUR_API_KEY_HERE"
+    ```
+    Replace `"YOUR_API_KEY_HERE"` with your actual API key obtained from Google AI Studio. Ensure your API key has the necessary permissions for the 'gemini-pro' model (or the specific model you intend to use).
+
+2.  **Dependency Installation**:
+    The `google-generativeai` package (e.g., `google-generativeai~=0.5.0`), which is the Python SDK for the Gemini API, must be installed in your project's environment. This package is listed in `pyproject.toml`. You can install/sync dependencies using:
+    ```bash
+    uv pip sync pyproject.toml
+    ```
+    (or `pip install google-generativeai` if you're managing packages individually).
+
+    The specific prompt used by `GeminiExtractor` is located in `app/services/prompts/gemini_extract_prompt.txt` and can be modified there if you wish to customize the extraction behavior.
+
+If the `GEMINI_API_KEY` environment variable is not set, the `GeminiExtractor` will automatically fall back to using mock/placeholder data, and a warning will be logged. This allows for development and testing without requiring a live API key for every run.
+
+Currently, `app/main.py` is configured to use `GeminiExtractor`. This can be easily changed by modifying the `extractor` variable instantiation in `app/main.py` to use one of the other implemented placeholder extractors (e.g., `extractor = GptExtractor()`).
+
+---
+
 ## 🗺️ Roadmap
 
 *   **✅ MVP (Completed/In Progress):**

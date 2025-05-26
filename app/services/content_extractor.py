@@ -1,3 +1,6 @@
+import json
+import google.generativeai as genai
+from pathlib import Path
 from abc import ABC, abstractmethod
 from pydantic import BaseModel, HttpUrl, Field
 from typing import List, Optional, Dict, Any
@@ -80,6 +83,10 @@ class ContentExtractor(ABC):
 
 # --- Mock Implementation ---
 class MockContentExtractor(ContentExtractor):
+    def __init__(self, api_key: Optional[str] = None):
+        # API key is ignored for this mock extractor
+        pass
+
     async def extract(self, html_content: str, url: HttpUrl) -> ExtractedContent:
         logger = logging.getLogger(__name__)
         logger.info(f"MockContentExtractor processing URL: {url}")
@@ -145,12 +152,419 @@ services:
 
 # --- No actual AI implementation in this MVP phase ---
 # Future implementations would look like:
-# class GeminiExtractor(ContentExtractor):
-#     async def extract(self, html_content: str, url: HttpUrl) -> ExtractedContent:
-#         # ... logic to call Gemini API, parse response, map to ExtractedContent ...
-#         pass
-
 # class GptExtractor(ContentExtractor):
 #     async def extract(self, html_content: str, url: HttpUrl) -> ExtractedContent:
 #         # ... logic to call GPT API ...
 #         pass
+
+
+class GeminiExtractor(ContentExtractor):
+    """
+    Content extractor using a placeholder for Gemini API.
+    This class simulates the interaction with a Gemini model for extracting
+    quickstart information.
+    """
+
+    def __init__(self, api_key: Optional[str] = None):
+        self._api_key = api_key
+        # In a real scenario, you might also initialize the Gemini client here
+        # if the API key is provided, or raise an error/warning if it's missing.
+        self.prompt_template_path = Path(__file__).parent / "prompts" / "gemini_extract_prompt.txt"
+
+    async def extract(self, html_content: str, url: HttpUrl) -> ExtractedContent:
+        logger = logging.getLogger(__name__)
+        logger.info(f"GeminiExtractor processing URL: {url}")
+
+        logger.info("GeminiExtractor attempting to process content.")
+
+        if self._api_key:
+            logger.info("Gemini API key found. Attempting to initialize SDK and make a live API call.")
+
+            try:
+                prompt_template = self.prompt_template_path.read_text()
+            except FileNotFoundError:
+                logger.error(f"Prompt template file not found at {self.prompt_template_path}", exc_info=True)
+                return ExtractedContent(
+                    source_url=url,
+                    extraction_metadata={
+                        "source": "GeminiExtractor - Error",
+                        "error": f"Prompt template file not found: {self.prompt_template_path}"
+                    }
+                )
+
+            html_snippet = html_content[:10000] # Or whatever length is appropriate
+            prompt = prompt_template.format(url=str(url), html_snippet=html_snippet)
+            logger.info(f"Generated prompt for Gemini from template. Length: {len(prompt)}")
+
+            try:
+                genai.configure(api_key=self._api_key)
+                model = genai.GenerativeModel('gemini-pro') # Or 'gemini-1.5-flash' or other suitable model
+            except Exception as e:
+                logger.error(f"Failed to initialize Gemini SDK: {e}", exc_info=True)
+                return ExtractedContent(
+                    source_url=url,
+                    extraction_metadata={
+                        "source": "GeminiExtractor - SDK Initialization Error",
+                        "error": str(e)
+                    }
+                )
+
+            ai_response_text = None
+            try:
+                logger.info(f"Sending prompt to Gemini model ({model.model_name})...")
+                # Optional: Add safety_settings if needed
+                # safety_settings = [
+                #     {
+                #         "category": "HARM_CATEGORY_HARASSMENT",
+                #         "threshold": "BLOCK_MEDIUM_AND_ABOVE"
+                #     },
+                #     # ... other categories
+                # ]
+                # response = model.generate_content(prompt, safety_settings=safety_settings)
+                response = model.generate_content(prompt)
+                
+                if response.parts:
+                    ai_response_text = response.text 
+                else:
+                    block_reason = response.prompt_feedback.block_reason if response.prompt_feedback else "Unknown"
+                    logger.warning(f"Gemini API call did not return content. Block reason: {block_reason}")
+                    finish_reason = response.candidates[0].finish_reason if response.candidates and response.candidates[0].finish_reason else "Unknown"
+                    return ExtractedContent(
+                        source_url=url,
+                        extraction_metadata={
+                            "source": "GeminiExtractor - Live API Call (No Content)",
+                            "model_used": model.model_name,
+                            "finish_reason": str(finish_reason),
+                            "block_reason": str(block_reason),
+                            "prompt_feedback": str(response.prompt_feedback)
+                        }
+                    )
+
+            except Exception as e:
+                logger.error(f"Gemini API call failed: {e}", exc_info=True)
+                return ExtractedContent(
+                    source_url=url,
+                    extraction_metadata={
+                        "source": "GeminiExtractor - API Call Error",
+                        "error": str(e)
+                    }
+                )
+
+            if ai_response_text:
+                try:
+                    parsed_response = json.loads(ai_response_text)
+                    logger.info("Successfully parsed JSON response from Gemini API.")
+
+                    dependencies_data = parsed_response.get("dependencies", [])
+                    configurations_data = parsed_response.get("configurations", [])
+                    setup_steps_data = parsed_response.get("setup_steps", [])
+
+                    extraction_metadata = {
+                        "source": "GeminiExtractor - Live API Call (Success)",
+                        "model_used": model.model_name,
+                        "prompt_length": len(prompt),
+                        "response_length": len(ai_response_text)
+                    }
+
+                    return ExtractedContent(
+                        source_url=url,
+                        tool_name=parsed_response.get("tool_name"),
+                        tool_version=parsed_response.get("tool_version"),
+                        quickstart_title=parsed_response.get("quickstart_title"),
+                        dependencies=[ExtractedDependency(**dep) for dep in dependencies_data],
+                        configurations=[ExtractedConfiguration(**conf) for conf in configurations_data],
+                        setup_steps=[ExtractedStep(**step) for step in setup_steps_data],
+                        docker_image=parsed_response.get("docker_image"),
+                        docker_run_command=parsed_response.get("docker_run_command"),
+                        docker_compose_snippet=parsed_response.get("docker_compose_snippet"),
+                        raw_text_summary=parsed_response.get("raw_text_summary"),
+                        extraction_metadata=extraction_metadata,
+                    )
+
+                except json.JSONDecodeError as e:
+                    logger.error(f"Failed to parse JSON response from Gemini API: {e}", exc_info=True)
+                    logger.debug(f"AI Response Text was: {ai_response_text}")
+                    return ExtractedContent(
+                        source_url=url,
+                        raw_text_summary=ai_response_text, 
+                        extraction_metadata={
+                            "source": "GeminiExtractor - Live API Call (JSON Parse Error)",
+                            "model_used": model.model_name,
+                            "error": str(e)
+                        }
+                    )
+            else:
+                logger.warning("Gemini API call returned no text to parse.")
+                return ExtractedContent(
+                    source_url=url,
+                    extraction_metadata={
+                        "source": "GeminiExtractor - Live API Call (No Text Returned)",
+                        "model_used": model.model_name if 'model' in locals() else "gemini-pro"
+                    }
+                )
+        else:
+            logger.warning(f"No API key provided for GeminiExtractor. Falling back to placeholder mock data for URL: {url}")
+            # Fallback to original placeholder logic
+            mock_api_response = {
+                "tool_name": "Gemini Extracted Tool (Placeholder)",
+                "tool_version": "1.0-gemini-placeholder",
+                "dependencies": [
+                    {"name": "Mock Gemini SDK (Placeholder)", "version": "0.1.0", "type": "library"}
+                ],
+                "setup_steps": [
+                    {
+                        "description": "Install Mock Gemini SDK (Placeholder)",
+                        "command": "pip install mock-gemini-sdk",
+                        "type": "install",
+                    },
+                    {
+                        "description": "Configure Gemini API key (Placeholder)",
+                        "type": "configure",
+                    },
+                ],
+                "quickstart_title": "Quickstart with Gemini Extracted Tool (Placeholder)",
+                "raw_text_summary": "This is a placeholder summary from GeminiExtractor when no API key is used."
+            }
+            # logger.info(f"Using fallback placeholder data. Mock response: {mock_api_response}") # Already logged above
+
+            tool_name = mock_api_response.get("tool_name")
+            tool_version = mock_api_response.get("tool_version")
+            dependencies = [
+                ExtractedDependency(**dep) for dep in mock_api_response.get("dependencies", [])
+            ]
+            setup_steps = [
+                ExtractedStep(**step) for step in mock_api_response.get("setup_steps", [])
+            ]
+            quickstart_title = mock_api_response.get("quickstart_title")
+            raw_text_summary = mock_api_response.get("raw_text_summary")
+
+            extraction_metadata = {
+                "source": "GeminiExtractor - Placeholder (No API Key)",
+                "confidence": "N/A (Placeholder Data)",
+                "reason": "API key not provided, using fallback mock data.",
+            }
+
+            return ExtractedContent(
+                source_url=url,
+                tool_name=tool_name,
+                tool_version=tool_version,
+                quickstart_title=quickstart_title,
+                dependencies=dependencies,
+                setup_steps=setup_steps,
+                # docker_image, docker_run_command, etc., are intentionally omitted for this simplified placeholder
+                raw_text_summary=raw_text_summary,
+                extraction_metadata=extraction_metadata,
+            )
+
+
+class GptExtractor(ContentExtractor):
+    """
+    Content extractor using a placeholder for GPT API.
+    This class simulates the interaction with a GPT model for extracting
+    quickstart information.
+    """
+
+    def __init__(self, api_key: Optional[str] = None):
+        # API key is ignored for this placeholder extractor
+        pass
+
+    async def extract(self, html_content: str, url: HttpUrl) -> ExtractedContent:
+        logger = logging.getLogger(__name__)
+        logger.info(f"GptExtractor processing URL: {url}")
+
+        # Simulate API key handling (e.g., OpenAI API key) and client initialization
+        # Actual implementation:
+        # 1. Retrieve API key (e.g., os.getenv("OPENAI_API_KEY"))
+        # 2. Initialize client (e.g., openai.AsyncOpenAI())
+        logger.info("Simulating GPT API key handling and client initialization.")
+
+        # Simulate API call to a GPT model
+        # Actual implementation:
+        # 1. Construct prompt
+        # 2. Make API call (e.g., await client.chat.completions.create(...))
+        # 3. Parse response
+        mock_api_response = {
+            "tool_name": "GPT Extracted Tool",
+            "tool_version": "3.5-turbo-mock",
+            "dependencies": [{"name": "openai", "version": "1.0", "type": "library"}],
+            "setup_steps": [{"description": "Run GPT-based analysis", "type": "run"}],
+            "quickstart_title": "Quickstart with GPT Extracted Tool (Placeholder)",
+            "raw_text_summary": "This is a mock summary generated by the GptExtractor placeholder."
+        }
+        logger.info(f"Simulated GPT API call. Mock response: {mock_api_response}")
+
+        extraction_metadata = {
+            "source": "GptExtractor - Placeholder",
+            "model_name": "gpt-3.5-turbo (simulated)",
+            "confidence": "N/A (Placeholder Data)",
+        }
+
+        return ExtractedContent(
+            source_url=url,
+            tool_name=mock_api_response.get("tool_name"),
+            tool_version=mock_api_response.get("tool_version"),
+            quickstart_title=mock_api_response.get("quickstart_title"),
+            dependencies=[ExtractedDependency(**dep) for dep in mock_api_response.get("dependencies", [])],
+            setup_steps=[ExtractedStep(**step) for step in mock_api_response.get("setup_steps", [])],
+            raw_text_summary=mock_api_response.get("raw_text_summary"),
+            extraction_metadata=extraction_metadata,
+        )
+
+
+class LlamaExtractor(ContentExtractor):
+    """
+    Content extractor using a placeholder for a Llama-based API.
+    This class simulates interaction with a Llama model.
+    """
+
+    def __init__(self, api_key: Optional[str] = None):
+        # API key is ignored for this placeholder extractor
+        pass
+
+    async def extract(self, html_content: str, url: HttpUrl) -> ExtractedContent:
+        logger = logging.getLogger(__name__)
+        logger.info(f"LlamaExtractor processing URL: {url}")
+
+        # Simulate API key handling and client initialization for a Llama model endpoint
+        # Actual implementation:
+        # 1. Retrieve API key/credentials for Llama model hosting service
+        # 2. Initialize client for the Llama API
+        logger.info("Simulating Llama API key handling and client initialization.")
+
+        # Simulate API call to a Llama model
+        # Actual implementation:
+        # 1. Construct prompt suitable for Llama
+        # 2. Make API call
+        # 3. Parse Llama's response
+        mock_api_response = {
+            "tool_name": "Llama Extracted Tool",
+            "tool_version": "Llama-2-7b-mock",
+            "dependencies": [{"name": "transformers", "type": "library"}],
+            "setup_steps": [{"description": "Run Llama-based analysis", "type": "run"}],
+            "quickstart_title": "Quickstart with Llama Extracted Tool (Placeholder)",
+            "raw_text_summary": "This is a mock summary generated by the LlamaExtractor placeholder."
+        }
+        logger.info(f"Simulated Llama API call. Mock response: {mock_api_response}")
+
+        extraction_metadata = {
+            "source": "LlamaExtractor - Placeholder",
+            "model_name": "Llama 2 (simulated)",
+            "confidence": "N/A (Placeholder Data)",
+        }
+
+        return ExtractedContent(
+            source_url=url,
+            tool_name=mock_api_response.get("tool_name"),
+            tool_version=mock_api_response.get("tool_version"),
+            quickstart_title=mock_api_response.get("quickstart_title"),
+            dependencies=[ExtractedDependency(**dep) for dep in mock_api_response.get("dependencies", [])],
+            setup_steps=[ExtractedStep(**step) for step in mock_api_response.get("setup_steps", [])],
+            raw_text_summary=mock_api_response.get("raw_text_summary"),
+            extraction_metadata=extraction_metadata,
+        )
+
+
+class DeepSeekExtractor(ContentExtractor):
+    """
+    Content extractor using a placeholder for a DeepSeek API.
+    This class simulates interaction with a DeepSeek model.
+    """
+
+    def __init__(self, api_key: Optional[str] = None):
+        # API key is ignored for this placeholder extractor
+        pass
+
+    async def extract(self, html_content: str, url: HttpUrl) -> ExtractedContent:
+        logger = logging.getLogger(__name__)
+        logger.info(f"DeepSeekExtractor processing URL: {url}")
+
+        # Simulate API key handling and client initialization for DeepSeek API
+        # Actual implementation:
+        # 1. Retrieve DeepSeek API key
+        # 2. Initialize DeepSeek API client
+        logger.info("Simulating DeepSeek API key handling and client initialization.")
+
+        # Simulate API call to a DeepSeek model
+        # Actual implementation:
+        # 1. Construct prompt for DeepSeek
+        # 2. Make API call
+        # 3. Parse DeepSeek's response
+        mock_api_response = {
+            "tool_name": "DeepSeek Extracted Tool",
+            "tool_version": "DeepSeek-Coder-mock",
+            "dependencies": [{"name": "deepseek-sdk", "type": "library"}],
+            "setup_steps": [{"description": "Run DeepSeek-based analysis", "type": "run"}],
+            "quickstart_title": "Quickstart with DeepSeek Extracted Tool (Placeholder)",
+            "raw_text_summary": "This is a mock summary generated by the DeepSeekExtractor placeholder."
+        }
+        logger.info(f"Simulated DeepSeek API call. Mock response: {mock_api_response}")
+
+        extraction_metadata = {
+            "source": "DeepSeekExtractor - Placeholder",
+            "model_name": "DeepSeek Coder (simulated)",
+            "confidence": "N/A (Placeholder Data)",
+        }
+
+        return ExtractedContent(
+            source_url=url,
+            tool_name=mock_api_response.get("tool_name"),
+            tool_version=mock_api_response.get("tool_version"),
+            quickstart_title=mock_api_response.get("quickstart_title"),
+            dependencies=[ExtractedDependency(**dep) for dep in mock_api_response.get("dependencies", [])],
+            setup_steps=[ExtractedStep(**step) for step in mock_api_response.get("setup_steps", [])],
+            raw_text_summary=mock_api_response.get("raw_text_summary"),
+            extraction_metadata=extraction_metadata,
+        )
+
+
+class ClaudeExtractor(ContentExtractor):
+    """
+    Content extractor using a placeholder for Claude API.
+    This class simulates interaction with an Anthropic Claude model.
+    """
+
+    def __init__(self, api_key: Optional[str] = None):
+        # API key is ignored for this placeholder extractor
+        pass
+
+    async def extract(self, html_content: str, url: HttpUrl) -> ExtractedContent:
+        logger = logging.getLogger(__name__)
+        logger.info(f"ClaudeExtractor processing URL: {url}")
+
+        # Simulate API key handling (e.g., Anthropic API key) and client initialization
+        # Actual implementation:
+        # 1. Retrieve API key (e.g., os.getenv("ANTHROPIC_API_KEY"))
+        # 2. Initialize client (e.g., anthropic.AsyncAnthropic())
+        logger.info("Simulating Claude API key handling and client initialization.")
+
+        # Simulate API call to a Claude model
+        # Actual implementation:
+        # 1. Construct prompt for Claude
+        # 2. Make API call (e.g., await client.messages.create(...))
+        # 3. Parse Claude's response
+        mock_api_response = {
+            "tool_name": "Claude Extracted Tool",
+            "tool_version": "Claude-3-Opus-mock",
+            "dependencies": [{"name": "anthropic", "version": "0.7", "type": "library"}],
+            "setup_steps": [{"description": "Run Claude-based analysis", "type": "run"}],
+            "quickstart_title": "Quickstart with Claude Extracted Tool (Placeholder)",
+            "raw_text_summary": "This is a mock summary generated by the ClaudeExtractor placeholder."
+        }
+        logger.info(f"Simulated Claude API call. Mock response: {mock_api_response}")
+
+        extraction_metadata = {
+            "source": "ClaudeExtractor - Placeholder",
+            "model_name": "Claude 3 Opus (simulated)",
+            "confidence": "N/A (Placeholder Data)",
+        }
+
+        return ExtractedContent(
+            source_url=url,
+            tool_name=mock_api_response.get("tool_name"),
+            tool_version=mock_api_response.get("tool_version"),
+            quickstart_title=mock_api_response.get("quickstart_title"),
+            dependencies=[ExtractedDependency(**dep) for dep in mock_api_response.get("dependencies", [])],
+            setup_steps=[ExtractedStep(**step) for step in mock_api_response.get("setup_steps", [])],
+            raw_text_summary=mock_api_response.get("raw_text_summary"),
+            extraction_metadata=extraction_metadata,
+        )
